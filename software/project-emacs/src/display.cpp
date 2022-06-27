@@ -1,0 +1,66 @@
+#include "display.h"
+#include <TFT_eSPI.h>
+
+/*
+  TFT pins should be set in path/to/Arduino/libraries/TFT_eSPI/User_Setups/Setup24_ST7789.h
+*/
+TFT_eSPI tft = TFT_eSPI();
+
+
+void my_print(const char* dsc)
+{
+  Serial.printf("%s\r\n", dsc);
+  Serial.flush();
+}
+
+
+void my_disp_flush(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* color_p)
+{
+  uint32_t w = (area->x2 - area->x1 + 1);
+  uint32_t h = (area->y2 - area->y1 + 1);
+
+  tft.startWrite();
+  tft.setAddrWindow(area->x1, area->y1, w, h);
+  tft.pushColors(&color_p->full, w * h, true);
+  tft.endWrite();
+
+  lv_disp_flush_ready(disp);
+}
+
+
+void Display::init()
+{
+  ledcSetup(LCD_BL_PWM_CHANNEL, 5000, 8);
+  ledcAttachPin(LCD_BL_PIN, LCD_BL_PWM_CHANNEL);
+
+  lv_init();
+
+  lv_log_register_print_cb(my_print); /* register print function for debugging */
+
+  tft.begin(); /* TFT init */
+  tft.setRotation(2); /* mirror */
+
+  /*Initialize the display*/
+  static lv_disp_draw_buf_t disp_buf;
+  static lv_color_t buf[MY_DISP_HOR_RES * 10];
+  static lv_disp_drv_t disp_drv;
+  lv_disp_draw_buf_init(&disp_buf, buf, NULL, MY_DISP_HOR_RES * 10);
+  lv_disp_drv_init(&disp_drv);
+  disp_drv.hor_res = MY_DISP_HOR_RES;
+  disp_drv.ver_res = MY_DISP_VER_RES;
+  disp_drv.flush_cb = my_disp_flush;
+  disp_drv.draw_buf = &disp_buf;
+  lv_disp_drv_register(&disp_drv);
+}
+
+void Display::routine()
+{
+  lv_timer_handler();
+}
+
+void Display::setBackLight(float duty)
+{
+  duty = constrain(duty, 0, 1);
+  duty = 1 - duty;
+  ledcWrite(LCD_BL_PWM_CHANNEL, (int)(duty * 255));
+}
